@@ -2,6 +2,9 @@
 
 > A practical security control assessment and audit-readiness tool for GRC, Cloud Security, and Compliance professionals.
 
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/mehulnikumbh19/bastion-grc)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://bastion-grc.streamlit.app)
+
 ---
 
 ## 📌 Overview
