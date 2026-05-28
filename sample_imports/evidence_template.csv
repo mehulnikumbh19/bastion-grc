@@ -1,0 +1,2 @@
+evidence_id,related_control_id,evidence_name,evidence_type,evidence_description,evidence_owner,evidence_source,collection_method,evidence_status,date_collected,expiration_date,review_notes
+EV-100,NIST-AC-1,Access Control Policy v1.0,Policy,Example evidence description,Jane Smith,Policy Repository,Document download,Available,2025-01-01,2026-01-01,Current and approved

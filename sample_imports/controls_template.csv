@@ -1,0 +1,2 @@
+control_id,framework,control_family,control_title,control_description,requirement_summary,control_owner,system_application,data_type,implementation_status,evidence_required,evidence_available,evidence_source,evidence_link,last_reviewed_date,next_review_date,assessor_notes
+NIST-AC-1,NIST SP 800-53,Access Control,Access Control Policy,Example description,Example requirement,John Smith,Customer Portal,PII,Implemented,Policy document,Yes,Policy Repo,https://example.com/policy,2025-01-01,2026-01-01,Example notes
