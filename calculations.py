@@ -151,6 +151,137 @@ def enrich_findings(findings_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# ---------------------------------------------------------------------------
+# Common Control Framework (CCF) Mapping (Senior GRC Concept)
+# ---------------------------------------------------------------------------
+CCF_MAPPINGS = {
+    "CC-1": {
+        "title": "Access Control Policy & Governance",
+        "description": "Establish and annually review comprehensive identity and access control policies.",
+        "mappings": ["NIST-AC-1", "ISO-A.9.1", "HITRUST-01.a"]
+    },
+    "CC-2": {
+        "title": "User Account Lifecycle & Reviews",
+        "description": "Enforce formal user onboarding, de-provisioning, and quarterly access authorization reviews.",
+        "mappings": ["NIST-AC-2", "HIPAA-164.312a"]
+    },
+    "CC-3": {
+        "title": "Least Privilege & Privilege Restrictions",
+        "description": "Restrict administrative privileges to authorized users and enforce separate accounts.",
+        "mappings": ["NIST-AC-3", "CIS-5.4"]
+    },
+    "CC-4": {
+        "title": "Multi-Factor Authentication (MFA) Protection",
+        "description": "Enforce MFA for all remote, console, and administrative system access.",
+        "mappings": ["NIST-AC-17", "SOC2-CC6.1", "PCI-8.3"]
+    },
+    "CC-5": {
+        "title": "SIEM & Auditable Event Logging",
+        "description": "Implement automated centralized logging pipeline and aggregate security events in SIEM.",
+        "mappings": ["NIST-AU-2", "CIS-6.2", "PCI-10.2"]
+    },
+    "CC-6": {
+        "title": "Log Review & Security Incident Response",
+        "description": "Conduct weekly SIEM log reviews and test the incident response plan annually.",
+        "mappings": ["NIST-AU-6", "ISO-A.16.1", "NIST-IR-4"]
+    },
+    "CC-7": {
+        "title": "Data-at-Rest Cryptographic Controls",
+        "description": "Enforce industry-standard encryption (AES-256) for sensitive data at rest.",
+        "mappings": ["NIST-SC-28"]
+    },
+    "CC-8": {
+        "title": "Data-in-Transit Cryptographic Controls",
+        "description": "Enforce secure transport protocols (TLS 1.2+) for all networks and APIs.",
+        "mappings": ["NIST-SC-8", "HIPAA-164.312e"]
+    },
+    "CC-9": {
+        "title": "Vulnerability Management & Drift Detection",
+        "description": "Perform weekly system scans and continuously monitor cloud resources for configuration drift.",
+        "mappings": ["SOC2-CC7.2", "NIST-RA-5", "NIST-CM-6"]
+    },
+    "CC-10": {
+        "title": "Vendor Risk Management & BAAs",
+        "description": "Conduct annual security assessments for all critical third-party vendors handling PHI/PII.",
+        "mappings": ["HITRUST-09.ab", "SOC2-CC9.2"]
+    }
+}
+
+
+def calculate_framework_compliance(controls_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate the implementation rate metrics grouped by security framework.
+
+    Returns:
+        DataFrame containing framework names and percentage scores
+    """
+    if controls_df.empty:
+        return pd.DataFrame(columns=["Framework", "Implemented", "Partial", "Gap", "Score"])
+
+    frameworks = controls_df["framework"].dropna().unique()
+    rows = []
+    for fw in frameworks:
+        fw_ctrls = controls_df[controls_df["framework"] == fw]
+        total = len(fw_ctrls)
+        impl = (fw_ctrls["implementation_status"] == "Implemented").sum()
+        part = (fw_ctrls["implementation_status"] == "Partially Implemented").sum()
+        gap = (fw_ctrls["implementation_status"].isin(["Not Implemented", "Not Assessed"])).sum()
+        
+        # Calculate a weighted score: Implemented = 100%, Partial = 50%
+        score = round(((impl + (part * 0.5)) / total) * 100) if total > 0 else 0
+        
+        rows.append({
+            "Framework": fw,
+            "Total": int(total),
+            "Implemented": int(impl),
+            "Partially Implemented": int(part),
+            "Gaps": int(gap),
+            "Score": int(score)
+        })
+    return pd.DataFrame(rows).sort_values("Score", ascending=False)
+
+
+def get_ccf_mappings(controls_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Evaluate the status of our Unified Common Controls (CC-1 to CC-10) based on
+    the implementation status of their underlying mapped framework requirements.
+    
+    A Common Control is marked as:
+    - 'Implemented' if all mapped framework requirements are Implemented.
+    - 'Partially Implemented' if at least one is Implemented or Partially Implemented, but not all.
+    - 'Gap' if all mapped framework requirements are Not Implemented or Not Assessed.
+    """
+    rows = []
+    for cc_id, cc_info in CCF_MAPPINGS.items():
+        mapped_ids = cc_info["mappings"]
+        mapped_ctrls = controls_df[controls_df["control_id"].isin(mapped_ids)]
+        
+        if mapped_ctrls.empty:
+            status = "Not Assessed"
+            color = "gray"
+        else:
+            statuses = mapped_ctrls["implementation_status"].tolist()
+            if all(s == "Implemented" for s in statuses):
+                status = "Implemented"
+                color = "green"
+            elif any(s in ["Implemented", "Partially Implemented"] for s in statuses):
+                status = "Partially Implemented"
+                color = "amber"
+            else:
+                status = "Gap"
+                color = "red"
+                
+        rows.append({
+            "Common Control ID": cc_id,
+            "Common Control Title": cc_info["title"],
+            "Description": cc_info["description"],
+            "Mapped Framework Controls": ", ".join(mapped_ids),
+            "Implementation Status": status,
+            "Color": color
+        })
+    return pd.DataFrame(rows)
+
+
 def get_dashboard_metrics(controls_df, evidence_df, findings_df, remediation_df, exceptions_df):
     """
     Compute all KPI numbers for the Dashboard page.
@@ -198,3 +329,4 @@ def get_dashboard_metrics(controls_df, evidence_df, findings_df, remediation_df,
         "accepted_exceptions":    int(accepted_exceptions),
         "high_risk_findings":     int(high_risk),
     }
+

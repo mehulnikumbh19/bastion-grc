@@ -144,6 +144,8 @@ initialize()
 PAGES = [
     "📊  Dashboard",
     "📋  Control Library",
+    "🛡️  Common Controls (CCF)",
+    "🔎  Assessor Review Center",
     "🗂️  Evidence Tracker",
     "🔍  Gap & Finding Tracker",
     "🔧  Remediation Tracker",
@@ -349,6 +351,34 @@ def page_dashboard():
             )
             st.plotly_chart(fig3, use_container_width=True)
 
+    # --- Framework Compliance Scores ---
+    st.markdown('<div class="section-header">Framework Compliance Index</div>', unsafe_allow_html=True)
+    fw_comp = calc.calculate_framework_compliance(controls_df)
+    if not fw_comp.empty:
+        fig_fw = px.bar(
+            fw_comp,
+            x="Score",
+            y="Framework",
+            orientation="h",
+            text="Score",
+            title="Compliance Score by Framework (%)",
+            labels={"Score": "Compliance Score (%)", "Framework": ""},
+            template="plotly_dark",
+            color="Score",
+            color_continuous_scale="RdYlGn",
+        )
+        fig_fw.update_layout(
+            paper_bgcolor="#1c2128",
+            plot_bgcolor="#1c2128",
+            coloraxis_showscale=False,
+            margin=dict(l=10, r=10, t=40, b=10),
+            height=280,
+        )
+        fig_fw.update_traces(texttemplate='%{text}%', textposition='outside')
+        st.plotly_chart(fig_fw, use_container_width=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
     # --- Recent high-risk findings table ---
     st.markdown('<div class="section-header">High & Critical Findings</div>', unsafe_allow_html=True)
     if not findings_df.empty:
@@ -487,9 +517,210 @@ def page_control_library():
     with st.expander("🗑️ Delete a Control"):
         del_id = st.selectbox("Select Control to Delete", [""] + controls_df["control_id"].tolist())
         if st.button("Delete Selected Control", type="secondary") and del_id:
-            db.delete_control(del_id)
             st.warning(f"Deleted control {del_id}")
             st.rerun()
+
+
+# ===========================================================================
+# PAGE: Common Control Framework (CCF) Matrix
+# ===========================================================================
+def page_ccf():
+    st.markdown("## 🛡️ Common Control Framework (CCF) Mapping")
+    st.write(
+        "A **Common Control Framework (CCF)** maps a single internal, company-defined control "
+        "to multiple external regulatory frameworks (NIST SP 800-53, CIS Controls, ISO 27001, SOC 2, HIPAA, PCI DSS, HITRUST). "
+        "This minimizes duplicate compliance tasks and prevents audit fatigue by auditing once and satisfying many."
+    )
+
+    controls_df = db.get_all_controls()
+    ccf_df = calc.get_ccf_mappings(controls_df)
+
+    # Summary metric of CCF health
+    total_cc = len(ccf_df)
+    implemented_cc = (ccf_df["Implementation Status"] == "Implemented").sum()
+    partial_cc = (ccf_df["Implementation Status"] == "Partially Implemented").sum()
+    gap_cc = (ccf_df["Implementation Status"] == "Gap").sum()
+
+    st.markdown('<div class="section-header">CCF Posture Overview</div>', unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(kpi_card("Total Common Controls", total_cc, "blue"), unsafe_allow_html=True)
+    with c2:
+        st.markdown(kpi_card("Fully Compliant (All Mapped)", implemented_cc, "green"), unsafe_allow_html=True)
+    with c3:
+        st.markdown(kpi_card("Partially Compliant", partial_cc, "amber"), unsafe_allow_html=True)
+    with c4:
+        st.markdown(kpi_card("Critical Gaps (No Mapped)", gap_cc, "red"), unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.markdown('<div class="section-header">Common Control Mapping Details</div>', unsafe_allow_html=True)
+    
+    # Custom colored status display
+    for _, row in ccf_df.iterrows():
+        color_map = {
+            "Implemented": "badge-low",
+            "Partially Implemented": "badge-high",
+            "Gap": "badge-critical"
+        }
+        badge_cls = color_map.get(row["Implementation Status"], "badge-medium")
+        
+        status_html = f'<span class="badge {badge_cls}">{row["Implementation Status"]}</span>'
+        
+        with st.expander(f"🔑 **{row['Common Control ID']}** — {row['Common Control Title']}  |  ({row['Implementation Status']})", expanded=True if row["Implementation Status"] == "Gap" else False):
+            st.markdown(f"**Description:** {row['Description']}")
+            st.markdown(f"**Mapped Regulatory Controls:** `{row['Mapped Framework Controls']}`")
+            
+            # Show details of mapped controls
+            mapped_ids = [cid.strip() for cid in row["Mapped Framework Controls"].split(",")]
+            mapped_details = controls_df[controls_df["control_id"].isin(mapped_ids)][
+                ["control_id", "framework", "control_title", "implementation_status", "control_owner"]
+            ]
+            st.dataframe(mapped_details, use_container_width=True, hide_index=True)
+
+
+# ===========================================================================
+# PAGE: Assessor Review Center
+# ===========================================================================
+def page_assessor_review_center():
+    st.markdown("## 🔎 Assessor Control & Evidence Review Center")
+    st.write(
+        "A unified assessor interface designed for speed and productivity. Review a control's details "
+        "and its associated evidence side-by-side. Perform audits, approve evidence, and log "
+        "findings or risk exceptions without leaving this page."
+    )
+
+    controls_df, evidence_df, findings_df, remediation_df, exceptions_df = load_all()
+
+    col_ctrl, col_detail = st.columns([1, 2])
+
+    with col_ctrl:
+        st.markdown("### 📋 Select Control to Audit")
+        sel_fw = st.selectbox("Filter by Framework", ["All"] + sorted(controls_df["framework"].dropna().unique().tolist()))
+        
+        filtered_ctrls = controls_df.copy()
+        if sel_fw != "All":
+            filtered_ctrls = filtered_ctrls[filtered_ctrls["framework"] == sel_fw]
+            
+        ctrl_list = filtered_ctrls["control_id"].tolist()
+        if not ctrl_list:
+            st.warning("No controls found for this framework.")
+            return
+            
+        selected_cid = st.radio("Controls", ctrl_list, label_visibility="collapsed")
+
+    with col_detail:
+        if selected_cid:
+            row = controls_df[controls_df["control_id"] == selected_cid].iloc[0]
+            st.markdown(f"### 🛡️ Auditing: **{row['control_id']}** — {row['control_title']}")
+            
+            t1, t2, t3 = st.tabs(["📋 Control Details & Evidence", "📝 Perform Audit Action", "📁 Audit Trail (Linked Items)"])
+            
+            with t1:
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    st.markdown(f"**Framework:** {row['framework']}")
+                    st.markdown(f"**Family:** {row['control_family']}")
+                    st.markdown(f"**Owner:** {row['control_owner']}")
+                    st.markdown(f"**System/App:** {row['system_application']}")
+                    st.markdown(f"**Data Sensitivity:** `{row['data_type']}`")
+                with col_b:
+                    st.markdown(f"**Implementation Status:** `{row['implementation_status']}`")
+                    st.markdown(f"**Evidence Required:** {row['evidence_required']}")
+                    st.markdown(f"**Assessor Notes:** *{row['assessor_notes'] or 'None'}*")
+
+                st.markdown("#### 📂 Associated Evidence Logs")
+                linked_ev = evidence_df[evidence_df["related_control_id"] == selected_cid]
+                if not linked_ev.empty:
+                    st.dataframe(linked_ev[["evidence_id", "evidence_name", "evidence_type", "evidence_status", "expiration_date"]], 
+                                 use_container_width=True, hide_index=True)
+                else:
+                    st.error("⚠️ No evidence has been uploaded for this control.")
+
+            with t2:
+                st.markdown("#### ⚡ Quick Actions")
+                action = st.selectbox("Action type", ["Approve/Update Evidence Status", "Log Audit Finding", "Request Risk Exception"])
+                
+                if action == "Approve/Update Evidence Status":
+                    if not linked_ev.empty:
+                        ev_to_update = st.selectbox("Select Evidence to Update", linked_ev["evidence_id"].tolist())
+                        new_ev_status = st.selectbox("New Evidence Status", ["Available", "Incomplete", "Outdated", "Missing", "Approved"])
+                        ev_rev_notes = st.text_area("Review Notes / Assessment comments")
+                        
+                        if st.button("💾 Update Evidence Status", type="primary"):
+                            ev_row = evidence_df[evidence_df["evidence_id"] == ev_to_update].iloc[0].to_dict()
+                            ev_row["evidence_status"] = new_ev_status
+                            ev_row["review_notes"] = ev_rev_notes
+                            db.upsert_evidence(ev_row)
+                            st.success(f"Evidence {ev_to_update} updated successfully!")
+                            st.rerun()
+                    else:
+                        st.info("No evidence uploaded for this control. You can add one under the Evidence Tracker.")
+                        
+                elif action == "Log Audit Finding":
+                    with st.form("quick_finding_form"):
+                        st.markdown("##### 🚨 Log a Control Deficiency / Gap")
+                        f_title = st.text_input("Finding Title *", value=f"Deficiency in {selected_cid}: {row['control_title']}")
+                        f_sev = st.selectbox("Severity", ["Critical", "High", "Medium", "Low"])
+                        f_desc = st.text_area("Description / Assessors Proof of Concept")
+                        f_rec = st.text_area("Recommended Action", value=f"Implement and enforce {selected_cid} controls.")
+                        f_owner = st.text_input("Finding Owner", value=row["control_owner"])
+                        f_due = st.date_input("Due Date")
+                        
+                        if st.form_submit_button("🚨 Raise Finding"):
+                            fid = f"FND-{str(uuid.uuid4())[:6].upper()}"
+                            f_row = {
+                                "finding_id": fid, "related_control_id": selected_cid,
+                                "finding_title": f_title, "finding_description": f_desc,
+                                "risk_theme": "Incomplete Evidence", "severity": f_sev,
+                                "likelihood": 3, "impact": 3,
+                                "inherent_risk": f_sev, "existing_controls": "None",
+                                "residual_risk": f_sev, "business_impact": "Loss of audit readiness",
+                                "compliance_impact": f"Non-compliance with {row['framework']}", "recommended_action": f_rec,
+                                "finding_owner": f_owner, "due_date": str(f_due),
+                                "status": "Open", "closure_evidence": "", "closure_notes": ""
+                            }
+                            db.upsert_finding(f_row)
+                            st.success(f"Audit finding {fid} successfully logged against {selected_cid}!")
+                            st.rerun()
+
+                elif action == "Request Risk Exception":
+                    with st.form("quick_exception_form"):
+                        st.markdown("##### ⚠️ Request Temporary Risk Exception / Risk Acceptance")
+                        e_reason = st.text_area("Exception Reason / System constraints")
+                        e_just = st.text_area("Business Justification / Financial or Ops block")
+                        e_comp = st.text_area("Compensating Controls (How is risk minimized?)")
+                        e_owner = st.text_input("Risk Acceptance Owner", value=row["control_owner"])
+                        e_exp = st.date_input("Expiration Date")
+                        
+                        if st.form_submit_button("⚠️ Submit Exception"):
+                            eid = f"EXC-{str(uuid.uuid4())[:6].upper()}"
+                            e_row = {
+                                "exception_id": eid, "related_control_id": selected_cid,
+                                "related_finding_id": "", "exception_reason": e_reason,
+                                "business_justification": e_just, "compensating_controls": e_comp,
+                                "risk_acceptance_owner": e_owner, "approval_status": "Pending Approval",
+                                "expiration_date": str(e_exp), "review_date": str(date.today()),
+                                "notes": ""
+                            }
+                            db.upsert_exception(e_row)
+                            st.success(f"Risk exception request {eid} submitted for review.")
+                            st.rerun()
+
+            with t3:
+                st.markdown("#### 🚨 Linked Findings")
+                linked_find = findings_df[findings_df["related_control_id"] == selected_cid]
+                if not linked_find.empty:
+                    st.dataframe(linked_find[["finding_id", "finding_title", "severity", "status", "due_date"]], use_container_width=True, hide_index=True)
+                else:
+                    st.success("✅ No open findings logged against this control.")
+
+                st.markdown("#### ⚠️ Linked Exceptions")
+                linked_exc = exceptions_df[exceptions_df["related_control_id"] == selected_cid]
+                if not linked_exc.empty:
+                    st.dataframe(linked_exc[["exception_id", "approval_status", "expiration_date", "risk_acceptance_owner"]], use_container_width=True, hide_index=True)
+                else:
+                    st.success("✅ No risk exceptions logged for this control.")
 
 
 # ===========================================================================
@@ -1227,6 +1458,8 @@ def page_management_report():
 # ===========================================================================
 if   "Dashboard"          in page: page_dashboard()
 elif "Control Library"    in page: page_control_library()
+elif "Common Controls"    in page: page_ccf()
+elif "Review Center"      in page: page_assessor_review_center()
 elif "Evidence Tracker"   in page: page_evidence_tracker()
 elif "Gap & Finding"      in page: page_findings()
 elif "Remediation"        in page: page_remediation()

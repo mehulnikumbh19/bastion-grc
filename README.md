@@ -33,8 +33,10 @@ Existing enterprise GRC tools (Archer, ServiceNow GRC, OneTrust) cost thousands 
 
 | Feature | Description |
 |---|---|
-| 📊 **Dashboard** | KPI cards + 3 interactive Plotly charts for real-time risk posture |
+| 📊 **Dashboard** | KPI cards, 3 Plotly charts, and a framework compliance index representing GRC health |
 | 📋 **Control Library** | 30 pre-loaded controls across 7 frameworks; full CRUD with filters |
+| 🛡️ **Common Controls (CCF)** | Unified Common Control Framework mapping internal policies to multiple external frameworks |
+| 🔎 **Assessor Review Center** | Productivity interface for side-by-side control evaluation, evidence audits, and quick actions |
 | 🗂️ **Evidence Tracker** | Evidence status tracking with automatic gap flagging |
 | 🔍 **Gap & Finding Tracker** | Risk-rated findings with severity, likelihood, impact, and residual risk |
 | 🔧 **Remediation Tracker** | Remediation action plans with owner, due date, and overdue detection |
@@ -187,11 +189,11 @@ streamlit run app.py
 
 Use these on your resume under a **Projects** or **GRC Tools** section:
 
-- Built a **Streamlit and SQLite-based security control assessment tracker** mapping controls across NIST SP 800-53, CIS Controls, ISO 27001, SOC 2, HIPAA, HITRUST, and PCI DSS domains.
-- Developed **evidence, remediation, and exception tracking workflows** to support audit readiness and risk-based control assessment across 7 security frameworks and 10 control families.
-- Implemented **automated risk flagging** for missing evidence, overdue remediation, expired exceptions, and high-risk sensitive data control gaps (PHI, Cardholder Data).
-- Created **management-ready dashboards and Excel exports** summarizing control status, evidence gaps, risk severity distribution, and remediation progress using Python, Plotly, and openpyxl.
-- Designed a **5×5 risk scoring matrix** to calculate inherent and residual risk ratings for 10 structured audit findings across access control, encryption, logging, and vendor risk domains.
+- Built a **Streamlit and SQLite-based security control assessment tracker** that maps controls across NIST SP 800-53, CIS Controls, ISO 27001, SOC 2, HIPAA, HITRUST, and PCI DSS.
+- Designed a **Common Control Framework (CCF)** mapping 10 unified internal company controls to multiple regulatory standards to streamline audits and prevent "audit fatigue".
+- Developed an **interactive Assessor Review Center** for side-by-side control & evidence evaluation, enabling assessors to audit evidence, log findings, or request risk exceptions in a unified dashboard.
+- Implemented **automated risk calculations** utilizing a 5×5 likelihood-impact matrix, with system criticality weighting and real-time gap detection across AWS configurations (KMS, CloudTrail, Config).
+- Created **executive dashboard metrics and framework compliance charts** using Python, Plotly, and openpyxl to deliver multi-sheet management-ready reports and exports.
 
 ---
 
