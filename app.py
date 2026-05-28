@@ -15,10 +15,16 @@ import plotly.graph_objects as go
 from datetime import date, datetime
 import uuid
 
-# Local modules
+# Local modules (force reload to prevent Streamlit caching issues)
+import importlib
 import database as db
 import calculations as calc
 import reports as rep
+import seed_data
+importlib.reload(db)
+importlib.reload(calc)
+importlib.reload(rep)
+importlib.reload(seed_data)
 from seed_data import load_seed_data
 
 # ---------------------------------------------------------------------------
